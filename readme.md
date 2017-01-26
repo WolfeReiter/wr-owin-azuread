@@ -30,7 +30,7 @@ Call `AzureAuthStartup.ConfigureAuth(app)` in the `Configuration(IAppBuilder)` m
 
 4. Web.config appSettings
 
-```
+```xml
   <appSettings>
     <add key="azure:clientId" value="client-id-registered-in-azure" />
     <add key="azure:appKey" value="key-registered-in-azure" />
