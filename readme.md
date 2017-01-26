@@ -2,7 +2,7 @@
 
 ## Setup
 
-1. Web.config ClaimsAuthenticationManager
+### Web.config ClaimsAuthenticationManager
 
 Register the custom `ClaimsAuthenticationManager` type to replace the generic one. This is what maps Groups to Roles.
 
@@ -20,15 +20,15 @@ Register the custom `ClaimsAuthenticationManager` type to replace the generic on
 </configuration>
 ```
 
-2. Gobal.asax.cs::Application_PostAuthenticateRequest()
+### Gobal.asax.cs::Application_PostAuthenticateRequest()
 
 Create a PostAuthenticationRequest event handler method in Global.asax.cs and call `AzureAuthStartup.PostAuthenticateRequest()`. This is what ensures that the Group to Role mapping happens.
 
-3. OWIN Startup handler `Startup.cs`
+### OWIN Startup handler `Startup.cs`
 
 Call `AzureAuthStartup.ConfigureAuth(app)` in the `Configuration(IAppBuilder)` method. This is what registers AzureAD as the authentication provider.
 
-4. Web.config appSettings
+### Web.config appSettings
 
 ```xml
   <appSettings>
