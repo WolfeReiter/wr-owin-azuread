@@ -1,0 +1,43 @@
+# compiled directries #
+#######################
+bin/
+obj/
+
+# NuGet local storage #
+#######################
+packages/*
+
+# external resources #
+######################
+
+# ide user or temp files #
+##########################
+*.userprefs
+*.suo
+*.csproj.user
+*.sqlproj.user
+*~ #vim temp file
+App_Data/
+TestResults/
+*.dbmdl
+*.vsscc
+*.vspcc
+*.sqlproj.user
+*.pubxml.user
+.vs/
+
+# App Files ##
+*.sublime-workspace
+
+# OS generated files #
+######################
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+
+

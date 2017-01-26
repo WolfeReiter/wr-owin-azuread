@@ -1,0 +1,20 @@
+﻿@{
+    ViewBag.Title = "Reauthentication";
+}
+
+@section meta {
+    @if(!string.IsNullOrEmpty(ViewBag.RedirectUri)) {
+        <meta http-equiv="refresh" content="10; url=@Url.Action("SignIn", "Account", new { redirectUri = ViewBag.RedirectUri } )">
+    }
+}
+<h2>Unable to Automatically Refresh Azure Token</h2>
+<p>The system needs to refresh your authentication with Azure.</p>
+<p>You will be redirected in 10 seconds but you may @Html.ActionLink("click here to refresh", "SignIn", "Account", new { redirectUri = ViewBag.RedirectUri }, null) immediately.</p>
+@if (Request.IsAuthenticated)
+{
+    <hr/>
+
+    <h4 style="color:red">Help, I'm Caught in Groundhog Day!</h4>
+    <p>If you have seend this screen multiple times in a loop, you should log off and log on again.</p>
+    <p>@Html.ActionLink("Click here to log off.", "SignOut", "Account")</p>
+}
