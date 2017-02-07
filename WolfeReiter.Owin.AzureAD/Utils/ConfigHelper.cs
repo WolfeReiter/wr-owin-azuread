@@ -118,9 +118,14 @@ namespace WolfeReiter.Owin.AzureAD.Utils
             return builder.Uri;
         }
 
-        public static async Task<string> AzureGraphToken(ClaimsPrincipal principal)
+        /// <summary>
+        /// Azure graph token acquired from the principal and application client credential.
+        /// </summary>
+        /// <param name="principal"></param>
+        /// <returns></returns>
+        public static async Task<string> AzureGraphToken()
         {
-            var uid = new UserIdentifier(principal.FindFirst(AzureClaimTypes.ObjectIdentifier).Value, UserIdentifierType.UniqueId);
+            var uid = new UserIdentifier(ClaimsPrincipal.Current.FindFirst(AzureClaimTypes.ObjectIdentifier).Value, UserIdentifierType.UniqueId);
             var credential = new ClientCredential(AzureClientId, AzureAppKey);
             var authContext = new AuthenticationContext(AzureAuthority);
             var result = await authContext.AcquireTokenSilentAsync(AzureGraphResourceId, credential, uid);
