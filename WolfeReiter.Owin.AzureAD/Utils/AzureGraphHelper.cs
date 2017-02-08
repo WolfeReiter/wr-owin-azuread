@@ -3,13 +3,13 @@ using Microsoft.Azure.ActiveDirectory.GraphClient.Extensions;
 using Microsoft.IdentityModel.Clients.ActiveDirectory;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using System.Web;
-using DynamicJson = System.Web.Helpers.Json;
 
 namespace WolfeReiter.Owin.AzureAD.Utils
 {
@@ -124,7 +124,15 @@ namespace WolfeReiter.Owin.AzureAD.Utils
                     }
                     else
                     {
-                        throw item.FailureResult;
+                        var failureResult = item.FailureResult as Microsoft.Data.OData.ODataErrorException;
+                        if (failureResult != null && failureResult.Error.ErrorCode == "Request_ResourceNotFound")
+                        {
+                            Debug.WriteLine("Group ID associated with user not found (deleted): {0}.", failureResult.Error.Message);
+                        }
+                        else
+                        {
+                            throw item.FailureResult;
+                        }
                     }
                 }
             }
