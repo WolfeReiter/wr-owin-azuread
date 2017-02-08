@@ -176,7 +176,7 @@ namespace WolfeReiter.Owin.AzureAD.Utils
                     _AzureAuthenticationFailedHandlerUrlTemplate = AzureAuthenticationFailedHandlerUrlTemplateConfig;
                     if(string.IsNullOrEmpty(_AzureAuthenticationFailedHandlerUrlTemplate))
                     {
-                        _AzureAuthenticationFailedHandlerUrlTemplate = AzureAuthenticationFailedHandlerUrlTemplateConfig;
+                        _AzureAuthenticationFailedHandlerUrlTemplate = AzureAuthenticationFailedHandlerUrlDefault;
                     }
                 }
                 return _AzureAuthenticationFailedHandlerUrlTemplate;
