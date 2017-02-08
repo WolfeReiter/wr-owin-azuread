@@ -15,9 +15,8 @@ namespace WolfeReiter.Owin.AzureAD.Demo.Controllers
         // GET: Home
         public async Task<ActionResult> Index()
         {
-            var test = User.IsInRole("WolfeReiter.AP.Administrator");
             var members = await AzureGraphHelper.UsersInGroup("WolfeReiter.AP.Administrator");
-            return View();
+            return View(members);
         }
     }
 }
