@@ -49,6 +49,7 @@ namespace WolfeReiter.Owin.AzureAD
                          AuthenticationFailed = context =>
                          {
                              context.HandleResponse();
+                             LogUtility.WriteEventLogEntry(LogUtility.FormatException(context.Exception, "AzureAD Authentication Handshake Failed"), EventType.Exception);
                              context.Response.Redirect(String.Format(ConfigHelper.AzureAuthenticationFailedHandlerUrlTemplate, context.Exception.Message));
                              return Task.FromResult(0);
                          }
@@ -61,19 +62,13 @@ namespace WolfeReiter.Owin.AzureAD
         /// </summary>
         public static void PostAuthenticateRequest()
         {
+            var context = HttpContext.Current;
             if (ClaimsPrincipal.Current.Identity.IsAuthenticated)
             {
                 var transformer = FederatedAuthentication.FederationConfiguration.IdentityConfiguration.ClaimsAuthenticationManager;
-                try
-                {
-                    var newPrincipal = transformer.Authenticate(string.Empty, ClaimsPrincipal.Current);
-                    Thread.CurrentPrincipal  = newPrincipal;
-                    HttpContext.Current.User = newPrincipal;
-                }
-                catch(Exception ex)
-                {
-                    HttpContext.Current.Response.Redirect(String.Format(ConfigHelper.AzureAuthenticationFailedHandlerUrlTemplate, ex.Message));
-                }
+                var newPrincipal = transformer.Authenticate(string.Empty, ClaimsPrincipal.Current);
+                Thread.CurrentPrincipal = newPrincipal;
+                context.User = newPrincipal;
             }
         }
     }

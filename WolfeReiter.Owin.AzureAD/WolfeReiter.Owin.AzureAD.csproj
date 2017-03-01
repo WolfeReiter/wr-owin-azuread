@@ -150,6 +150,7 @@
     <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="LogUtility.cs" />
     <Compile Include="Owin\Security\AzureGraphClaimsAuthenticationManager.cs" />
     <Compile Include="Owin\Security\OpenIdConnect\WolfeReiterOpenIdConnectAuthenticationHandler.cs" />
     <Compile Include="Owin\Security\OpenIdConnect\WolfeReiterOpenIdConnectAuthenticationMiddleware.cs" />
