@@ -182,5 +182,13 @@ namespace WolfeReiter.Owin.AzureAD.Utils
                 return _AzureAuthenticationFailedHandlerUrlTemplate;
             }
         }
+
+        public static string FallbackRedirectUri
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["azure:fallbackRedirctUri"];
+            }
+        }
     }
 }

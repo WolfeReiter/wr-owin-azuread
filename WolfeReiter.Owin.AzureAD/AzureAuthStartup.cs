@@ -5,6 +5,7 @@ using Microsoft.Owin.Security.OpenIdConnect;
 using Owin;
 using System;
 using System.IdentityModel.Services;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -34,13 +35,30 @@ namespace WolfeReiter.Owin.AzureAD
                      {
                          AuthorizationCodeReceived = context =>
                          {
-                             var builder = new UriBuilder(HttpContext.Current.Request.Url.GetLeftPart(UriPartial.Path));
+                             var authContext = new AuthenticationContext(ConfigHelper.AzureAuthority);
+                             //manual cache invalidation
+                             var userObjectID = context.AuthenticationTicket.Identity.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
+                             var cacheitem = authContext.TokenCache.ReadItems().Where(x => x.UniqueId == userObjectID).SingleOrDefault();
+                             if (cacheitem != null) authContext.TokenCache.DeleteItem(cacheitem);
+                             //get target redirect
+                             string path = null;
+                             try
+                             {
+                                 //empirically this is sometimes throwing a NullReferenceException on IIS 8.5 on Windows Server 2012 R2.
+                                 path = HttpContext.Current.Request.Url.GetLeftPart(UriPartial.Path);
+                                 throw new NullReferenceException();
+                             }
+                             catch(NullReferenceException)
+                             {
+                                 path = ConfigHelper.FallbackRedirectUri;
+                             }
+                             var builder = new UriBuilder(path);
                              if (!string.IsNullOrEmpty(ConfigHelper.OpenIdConnectRedirectScheme)) builder.Scheme = ConfigHelper.OpenIdConnectRedirectScheme;
                              if (ConfigHelper.OpenIdConnectRedirectPort.HasValue) builder.Port = ConfigHelper.OpenIdConnectRedirectPort.Value;
                              var redirectUri = builder.Uri;
+                             //azure credential
                              var credential = new ClientCredential(ConfigHelper.AzureClientId, ConfigHelper.AzureAppKey);
-                             var userObjectID = context.AuthenticationTicket.Identity.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
-                             var authContext = new AuthenticationContext(ConfigHelper.AzureAuthority);
+                             //request authentication service
                              var result = authContext.AcquireTokenByAuthorizationCode(
                                  context.Code, redirectUri, credential, ConfigHelper.AzureGraphResourceId);
                              return Task.FromResult(0);
