@@ -64,10 +64,16 @@ namespace WolfeReiter.Owin.AzureAD
             if (ClaimsPrincipal.Current.Identity.IsAuthenticated)
             {
                 var transformer = FederatedAuthentication.FederationConfiguration.IdentityConfiguration.ClaimsAuthenticationManager;
-                var newPrincipal = transformer.Authenticate(string.Empty, ClaimsPrincipal.Current);
-
-                Thread.CurrentPrincipal = newPrincipal;
-                HttpContext.Current.User = newPrincipal;
+                try
+                {
+                    var newPrincipal = transformer.Authenticate(string.Empty, ClaimsPrincipal.Current);
+                    Thread.CurrentPrincipal  = newPrincipal;
+                    HttpContext.Current.User = newPrincipal;
+                }
+                catch(Exception ex)
+                {
+                    HttpContext.Current.Response.Redirect(String.Format(ConfigHelper.AzureAuthenticationFailedHandlerUrlTemplate, ex.Message));
+                }
             }
         }
     }
