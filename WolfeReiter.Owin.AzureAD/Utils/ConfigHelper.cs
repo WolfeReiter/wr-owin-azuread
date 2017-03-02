@@ -190,5 +190,22 @@ namespace WolfeReiter.Owin.AzureAD.Utils
                 return ConfigurationManager.AppSettings["azure:fallbackRedirctUri"];
             }
         }
+
+        const int DefaultGroupCacheTtlSeconds = 60 * 60;
+        static int? _groupCacheTtlSeconds = null;
+        internal static int GroupCacheTtlSeconds
+        {
+            get
+            {
+                if(!_groupCacheTtlSeconds.HasValue)
+                {
+                    var value = ConfigurationManager.AppSettings["azure:groupCacheTtlSeconds"];
+                    int result;
+                    if (int.TryParse(value, out result)) _groupCacheTtlSeconds = result;
+                    else _groupCacheTtlSeconds = DefaultGroupCacheTtlSeconds;
+                }
+                return _groupCacheTtlSeconds.Value;
+            }
+        }
     }
 }

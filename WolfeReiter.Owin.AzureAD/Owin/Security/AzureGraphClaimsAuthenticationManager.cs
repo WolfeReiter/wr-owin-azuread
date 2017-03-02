@@ -1,4 +1,5 @@
 ﻿using Microsoft.Azure.ActiveDirectory.GraphClient;
+using Microsoft.IdentityModel.Clients.ActiveDirectory;
 using System;
 using System.Collections.Generic;
 using System.Linq;

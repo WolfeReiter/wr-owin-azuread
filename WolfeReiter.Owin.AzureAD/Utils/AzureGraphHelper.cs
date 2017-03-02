@@ -88,17 +88,37 @@ namespace WolfeReiter.Owin.AzureAD.Utils
         /// <returns></returns>
         public static async Task<IEnumerable<Group>> AzureGroups(this ClaimsPrincipal principal)
         {
+            var userObjectID     = ClaimsPrincipal.Current.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
             var ids                 = GroupIDs(principal);
             var directoryClient     = new ActiveDirectoryClient(ConfigHelper.AzureGraphServiceRoot(), () => ConfigHelper.AzureGraphToken());
             var batch               = new List<IReadOnlyQueryableSetBase>();
             var requests            = new List<Task<IBatchElementResult[]>>();
             var groups              = new List<Group>();
+            var utcExpired          = DateTime.UtcNow.AddSeconds(ConfigHelper.GroupCacheTtlSeconds);
 
             const int batchSize = 5;
             int count = ids.Count(); //readonly
             int index = 0;
             foreach(var id in ids)
             {
+                lock (s_groupCacheLock)
+                {
+                    if (GroupCache.ContainsKey(id))
+                    {
+                        var grouple = GroupCache[id];
+                        if (grouple.Item2 < utcExpired)
+                        {
+                            //groop in cache is valid
+                            groups.Add(grouple.Item1);
+                            continue; //next iteration
+                        }
+                        else //expired
+                        {
+                            GroupCache.Remove(id);
+                            //fall through
+                        }
+                    } //fall through
+                }
                 index++;
                 batch.Add(directoryClient.Groups.Where(x => x.ObjectId == id));
                 if(count == index || batchSize == batch.Count) //batch requests
@@ -109,6 +129,7 @@ namespace WolfeReiter.Owin.AzureAD.Utils
             }
 
             var responses = await Task.WhenAll(requests);
+            var utcNow = DateTime.UtcNow;
             foreach(var batchResult in responses)
             {
                 foreach(var item in batchResult)
@@ -119,7 +140,17 @@ namespace WolfeReiter.Owin.AzureAD.Utils
                         {
                             //filter out any result type that is not a Group (e.g. a Role like "GlobalAdmin")
                             var result = item.SuccessResult.CurrentPage.First();
-                            if(result is Group) groups.Add((Group)result);
+                            if (result is Group)
+                            {
+                                var group = (Group)result;
+                                groups.Add(group);
+                                lock (s_groupCacheLock)
+                                {
+                                    var grouple = new Tuple<Group, DateTime>(group, utcNow);
+                                    if (GroupCache.ContainsKey(group.ObjectId)) GroupCache[group.ObjectId] = grouple;
+                                    s_GroupCache.Add(group.ObjectId, grouple);
+                                }
+                            }
                         }
                     }
                     else
@@ -142,6 +173,17 @@ namespace WolfeReiter.Owin.AzureAD.Utils
         static IEnumerable<string> GroupIDs(ClaimsPrincipal principal)
         {
             return principal.Claims.Where(x => x.Type == "groups").Select(x => x.Value.ToLower());
+        }
+
+        static readonly object s_groupCacheLock = new object();
+        static Dictionary<string,Tuple<Group, DateTime>> s_GroupCache = null;
+        static Dictionary<string, Tuple<Group, DateTime>> GroupCache
+        {
+            get
+            {
+                if(s_GroupCache == null) s_GroupCache = new Dictionary<string, Tuple<Group, DateTime>>();
+                return s_GroupCache;
+            }
         }
     }
 }
