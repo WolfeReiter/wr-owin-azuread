@@ -46,7 +46,6 @@ namespace WolfeReiter.Owin.AzureAD
                              {
                                  //empirically this is sometimes throwing a NullReferenceException on IIS 8.5 on Windows Server 2012 R2.
                                  path = HttpContext.Current.Request.Url.GetLeftPart(UriPartial.Path);
-                                 throw new NullReferenceException();
                              }
                              catch(NullReferenceException)
                              {
