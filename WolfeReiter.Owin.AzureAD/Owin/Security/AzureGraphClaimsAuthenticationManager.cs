@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using System.Security.Principal;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -48,7 +49,7 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
                     if(agx != null && agx.InnerExceptions.Any(x => x is AdalSilentTokenAcquisitionException)) //azure token requires refresh
                     {
                         ClearTokenCache(incomingPrincipal);
-                        return new ClaimsPrincipal();
+                        return new GenericPrincipal(new GenericIdentity(""), new string[0]); //principal with unauthenticated identity
                     }
                     else if(iteration < max_retries) //other failure, maybe retry will fix it
                     {
@@ -58,7 +59,7 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
 
                     ClearTokenCache(incomingPrincipal);
 					//principal is not valid. Should be not authenticated.
-					return new ClaimsPrincipal();
+					return new GenericPrincipal(new GenericIdentity(""), new string[0]); //principal with unauthenticated identity
                 }
             }
             return incomingPrincipal;
