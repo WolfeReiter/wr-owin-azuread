@@ -39,6 +39,9 @@ namespace WolfeReiter.Owin.AzureAD
                 foreach (var current in ax.InnerExceptions)
                 {
                     var ex = current;
+                    message.AppendLine(string.Format("[{0}] {1}", ex.GetType(), ex.Message));
+                    stackTrace.AppendLine(ex.StackTrace);
+                    
                     while (null != (ex = ex.InnerException))
                     {
                         message.AppendLine(string.Format("[{0}] {1}", ex.GetType(), ex.Message));
