@@ -18,6 +18,14 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
             return _Authenticate(resourceName, incomingPrincipal, 0);
         }
 
+        void ClearTokenCache(ClaimsPrincipal incomingPrincipal)
+        {
+			string userObjectID = incomingPrincipal.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
+			var authContext = new AuthenticationContext(ConfigHelper.AzureAuthority);
+			var cacheitem = authContext.TokenCache.ReadItems().Where(x => x.UniqueId == userObjectID).SingleOrDefault();
+			if (cacheitem != null) authContext.TokenCache.DeleteItem(cacheitem);
+        }
+
         ClaimsPrincipal _Authenticate(string resourceName, ClaimsPrincipal incomingPrincipal, int iteration)
         {
             const int max_retries = 5;
@@ -37,11 +45,25 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
                 catch (Exception ex)
                 {
                     LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex, string.Format("Exception Mapping Groups to Roles (iteration: {0})",iteration)), EventType.Exception);
+                    if(ex is AggregateException)
+                    {
+                        var agx = ex as AggregateException;
+                        if (agx.InnerExceptions.Any(x => x is AdalSilentTokenAcquisitionException))
+                        {
+                            ClearTokenCache(incomingPrincipal);
+                        }
+                    }
                     if( iteration < max_retries)
                     {
                         Thread.Sleep(5000);
                         _Authenticate(resourceName, incomingPrincipal, iteration + 1);
                     }
+                    else
+                    {
+                        ClearTokenCache(incomingPrincipal);
+                    }
+                    //principal is not valid. Should be not authenticated.
+                    return new ClaimsPrincipal();
                 }
             }
             return incomingPrincipal;
