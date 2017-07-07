@@ -31,10 +31,9 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
             const int max_retries = 5;
             if (incomingPrincipal != null && incomingPrincipal.Identity.IsAuthenticated == true)
             {
-                var identity = (ClaimsIdentity)incomingPrincipal.Identity;
-
                 try
                 {
+					var identity = (ClaimsIdentity)incomingPrincipal.Identity;
                     var groups = Task.Run(() => AzureGraphHelper.AzureGroups(incomingPrincipal)).Result;
                     foreach (var group in groups)
                     {
@@ -44,26 +43,22 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
                 }
                 catch (Exception ex)
                 {
-                    LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex, string.Format("Exception Mapping Groups to Roles (iteration: {0})",iteration)), EventType.Exception);
-                    if(ex is AggregateException)
-                    {
-                        var agx = ex as AggregateException;
-                        if (agx.InnerExceptions.Any(x => x is AdalSilentTokenAcquisitionException))
-                        {
-                            ClearTokenCache(incomingPrincipal);
-                        }
-                    }
-                    if( iteration < max_retries)
-                    {
-                        Thread.Sleep(5000);
-                        _Authenticate(resourceName, incomingPrincipal, iteration + 1);
-                    }
-                    else
+                    LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex, string.Format("Exception Mapping Groups to Roles (iteration: {0})",iteration)), EventType.Warning);
+                    var agx = ex as AggregateException;
+                    if(agx != null && agx.InnerExceptions.Any(x => x is AdalSilentTokenAcquisitionException)) //azure token requires refresh
                     {
                         ClearTokenCache(incomingPrincipal);
+                        return new ClaimsPrincipal();
                     }
-                    //principal is not valid. Should be not authenticated.
-                    return new ClaimsPrincipal();
+                    else if(iteration < max_retries) //other failure, maybe retry will fix it
+                    {
+                        Thread.Sleep(5000);
+                        return _Authenticate(resourceName, incomingPrincipal, iteration + 1);
+                    }
+
+                    ClearTokenCache(incomingPrincipal);
+					//principal is not valid. Should be not authenticated.
+					return new ClaimsPrincipal();
                 }
             }
             return incomingPrincipal;
