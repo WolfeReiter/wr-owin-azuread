@@ -5,10 +5,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Security.Principal;
+using System.Web;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using WolfeReiter.Owin.AzureAD.Utils;
+using Microsoft.Owin.Security.OpenIdConnect;
+using Microsoft.Owin.Security.Cookies;
 
 namespace WolfeReiter.Owin.AzureAD.Owin.Security
 {
@@ -19,12 +22,16 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
             return _Authenticate(resourceName, incomingPrincipal, 0);
         }
 
-        void ClearTokenCache(ClaimsPrincipal incomingPrincipal)
+        void ClearAuthenticationContextState(ClaimsPrincipal incomingPrincipal)
         {
 			string userObjectID = incomingPrincipal.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
 			var authContext = new AuthenticationContext(ConfigHelper.AzureAuthority);
 			var cacheitem = authContext.TokenCache.ReadItems().Where(x => x.UniqueId == userObjectID).SingleOrDefault();
 			if (cacheitem != null) authContext.TokenCache.DeleteItem(cacheitem);
+
+			//force re-authentication
+			HttpContext.Current.GetOwinContext().Authentication.SignOut(
+				OpenIdConnectAuthenticationDefaults.AuthenticationType, CookieAuthenticationDefaults.AuthenticationType);
         }
 
         ClaimsPrincipal _Authenticate(string resourceName, ClaimsPrincipal incomingPrincipal, int iteration)
@@ -48,7 +55,7 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
                     var agx = ex as AggregateException;
                     if(agx != null && agx.InnerExceptions.Any(x => x is AdalSilentTokenAcquisitionException)) //azure token requires refresh
                     {
-                        ClearTokenCache(incomingPrincipal);
+                        ClearAuthenticationContextState(incomingPrincipal);
                         return new GenericPrincipal(new GenericIdentity(""), new string[0]); //principal with unauthenticated identity
                     }
                     else if(iteration < max_retries) //other failure, maybe retry will fix it
@@ -57,7 +64,7 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
                         return _Authenticate(resourceName, incomingPrincipal, iteration + 1);
                     }
 
-                    ClearTokenCache(incomingPrincipal);
+                    ClearAuthenticationContextState(incomingPrincipal);
 					//principal is not valid. Should be not authenticated.
 					return new GenericPrincipal(new GenericIdentity(""), new string[0]); //principal with unauthenticated identity
                 }
