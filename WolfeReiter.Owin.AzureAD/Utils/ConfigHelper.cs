@@ -7,6 +7,8 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using System.Web;
+using Microsoft.Owin.Security.OpenIdConnect;
+using Microsoft.Owin.Security.Cookies;
 
 namespace WolfeReiter.Owin.AzureAD.Utils
 {
@@ -121,15 +123,32 @@ namespace WolfeReiter.Owin.AzureAD.Utils
         /// <summary>
         /// Azure graph token acquired from the principal and application client credential.
         /// </summary>
-        /// <param name="principal"></param>
         /// <returns></returns>
         public static async Task<string> AzureGraphToken()
         {
             var uid = new UserIdentifier(ClaimsPrincipal.Current.FindFirst(AzureClaimTypes.ObjectIdentifier).Value, UserIdentifierType.UniqueId);
             var credential = new ClientCredential(AzureClientId, AzureAppKey);
             var authContext = new AuthenticationContext(AzureAuthority);
-            var result = await authContext.AcquireTokenSilentAsync(AzureGraphResourceId, credential, uid);
-            return result.AccessToken;
+            try
+            {
+                var result = await authContext.AcquireTokenSilentAsync(AzureGraphResourceId, credential, uid);
+                return result.AccessToken;
+            }
+            catch (AdalSilentTokenAcquisitionException ex) //unable to get authentication context without a new login
+            {
+                LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex,"Unable to silently acquire Azure AuthenticationContext."), EventType.Warning);
+
+                //remove user from memory cache
+				string userObjectID = ClaimsPrincipal.Current.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
+				var cacheitem = authContext.TokenCache.ReadItems().Where(x => x.UniqueId == userObjectID).SingleOrDefault();
+				if (cacheitem != null) authContext.TokenCache.DeleteItem(cacheitem);
+
+                //force re-authentication
+				HttpContext.Current.GetOwinContext().Authentication.SignOut(
+					OpenIdConnectAuthenticationDefaults.AuthenticationType, CookieAuthenticationDefaults.AuthenticationType);
+                
+				return string.Empty;
+            }
         }
 
         public static Uri AzureGraphServiceRoot()
