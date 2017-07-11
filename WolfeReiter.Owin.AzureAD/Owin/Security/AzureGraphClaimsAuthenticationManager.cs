@@ -19,7 +19,28 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
     {
         public override ClaimsPrincipal Authenticate(string resourceName, ClaimsPrincipal incomingPrincipal)
         {
-            return _Authenticate(resourceName, incomingPrincipal, 0);
+            const int max_retries = 5;
+            if (incomingPrincipal != null && incomingPrincipal.Identity.IsAuthenticated == true)
+            {
+                try
+                {
+                    var identity = (ClaimsIdentity)incomingPrincipal.Identity;
+                    var groups = Task.Run(() => AzureGraphHelper.AzureGroups(incomingPrincipal)).Result;
+                    foreach (var group in groups)
+                    {
+                        //add AzureAD Group claims as Roles.
+                        identity.AddClaim(new Claim(ClaimTypes.Role, group.DisplayName, ClaimValueTypes.String, "AzureAD"));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex, string.Format("Exception Mapping Groups to Roles)")), EventType.Warning);
+                    ClearAuthenticationContextState(incomingPrincipal);
+                    return new GenericPrincipal(new GenericIdentity(""), new string[0]); //principal with unauthenticated identity
+                }
+            }
+            return incomingPrincipal;
+
         }
 
         void ClearAuthenticationContextState(ClaimsPrincipal incomingPrincipal)
@@ -39,44 +60,6 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
             {
                 //NullReferenceException can be thrown and it is death of redirects.
             }
-        }
-
-        ClaimsPrincipal _Authenticate(string resourceName, ClaimsPrincipal incomingPrincipal, int iteration)
-        {
-            const int max_retries = 5;
-            if (incomingPrincipal != null && incomingPrincipal.Identity.IsAuthenticated == true)
-            {
-                try
-                {
-					var identity = (ClaimsIdentity)incomingPrincipal.Identity;
-                    var groups = Task.Run(() => AzureGraphHelper.AzureGroups(incomingPrincipal)).Result;
-                    foreach (var group in groups)
-                    {
-                        //add AzureAD Group claims as Roles.
-                        identity.AddClaim(new Claim(ClaimTypes.Role, group.DisplayName, ClaimValueTypes.String, "AzureAD"));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex, string.Format("Exception Mapping Groups to Roles (iteration: {0})",iteration)), EventType.Warning);
-                    var agx = ex as AggregateException;
-                    if(agx != null && agx.InnerExceptions.Any(x => x is AdalSilentTokenAcquisitionException)) //azure token requires refresh
-                    {
-                        ClearAuthenticationContextState(incomingPrincipal);
-                        return new GenericPrincipal(new GenericIdentity(""), new string[0]); //principal with unauthenticated identity
-                    }
-                    else if(iteration < max_retries) //other failure, maybe retry will fix it
-                    {
-                        Thread.Sleep(5000);
-                        return _Authenticate(resourceName, incomingPrincipal, iteration + 1);
-                    }
-
-                    ClearAuthenticationContextState(incomingPrincipal);
-					//principal is not valid. Should be not authenticated.
-					return new GenericPrincipal(new GenericIdentity(""), new string[0]); //principal with unauthenticated identity
-                }
-            }
-            return incomingPrincipal;
         }
     }
 }
