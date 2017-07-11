@@ -120,45 +120,6 @@ namespace WolfeReiter.Owin.AzureAD.Utils
             return builder.Uri;
         }
 
-        /// <summary>
-        /// Azure graph token acquired from the principal and application client credential.
-        /// </summary>
-        /// <returns></returns>
-        public static async Task<string> AzureGraphToken()
-        {
-            var uid = new UserIdentifier(ClaimsPrincipal.Current.FindFirst(AzureClaimTypes.ObjectIdentifier).Value, UserIdentifierType.UniqueId);
-            var credential = new ClientCredential(AzureClientId, AzureAppKey);
-            var authContext = new AuthenticationContext(AzureAuthority);
-            try
-            {
-                var result = await authContext.AcquireTokenSilentAsync(AzureGraphResourceId, credential, uid);
-                return result.AccessToken;
-            }
-            catch (AdalSilentTokenAcquisitionException ex) //unable to get authentication context without a new login
-            {
-                LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex,"Unable to silently acquire Azure AuthenticationContext."), EventType.Warning);
-
-                //remove user from memory cache
-				string userObjectID = ClaimsPrincipal.Current.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
-				var cacheitem = authContext.TokenCache.ReadItems().Where(x => x.UniqueId == userObjectID).SingleOrDefault();
-				if (cacheitem != null) authContext.TokenCache.DeleteItem(cacheitem);
-
-                //force re-authentication
-                try
-                {
-                    HttpContext.Current.GetOwinContext().Authentication.SignOut(
-                        OpenIdConnectAuthenticationDefaults.AuthenticationType, CookieAuthenticationDefaults.AuthenticationType);
-                }
-                catch(NullReferenceException)
-                {
-                    //log but swallow exception
-                    //we can't allow an exception to be thrown in the authentication process.
-                }
-
-                return string.Empty;
-            }
-        }
-
         public static Uri AzureGraphServiceRoot()
         {
             return new Uri(AzureGraphResourceId + "/" + AzureTenant);
