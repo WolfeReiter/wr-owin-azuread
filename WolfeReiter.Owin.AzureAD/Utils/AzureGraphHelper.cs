@@ -88,7 +88,7 @@ namespace WolfeReiter.Owin.AzureAD.Utils
         /// <returns></returns>
         public static async Task<IEnumerable<Group>> AzureGroups(this ClaimsPrincipal principal)
         {
-            var userObjectID     = ClaimsPrincipal.Current.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
+            var userObjectID        = ClaimsPrincipal.Current.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
             var ids                 = GroupIDs(principal);
             var directoryClient     = new ActiveDirectoryClient(ConfigHelper.AzureGraphServiceRoot(), () => ConfigHelper.AzureGraphToken());
             var batch               = new List<IReadOnlyQueryableSetBase>();
@@ -97,7 +97,7 @@ namespace WolfeReiter.Owin.AzureAD.Utils
             var utcExpired          = DateTime.UtcNow.AddSeconds(ConfigHelper.GroupCacheTtlSeconds);
 
             const int batchSize = 5;
-            int count = ids.Count(); //readonly
+            int count = ids.Count(); //count of groups to look up remotely
             int index = 0;
             foreach(var id in ids)
             {
@@ -110,6 +110,7 @@ namespace WolfeReiter.Owin.AzureAD.Utils
                         {
                             //groop in cache is valid
                             groups.Add(grouple.Item1);
+                            count--; //decrement count because we don't need to look this group up.
                             continue; //next iteration
                         }
                         else //expired
