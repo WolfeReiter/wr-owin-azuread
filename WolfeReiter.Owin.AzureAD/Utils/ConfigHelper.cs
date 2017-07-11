@@ -144,10 +144,18 @@ namespace WolfeReiter.Owin.AzureAD.Utils
 				if (cacheitem != null) authContext.TokenCache.DeleteItem(cacheitem);
 
                 //force re-authentication
-				HttpContext.Current.GetOwinContext().Authentication.SignOut(
-					OpenIdConnectAuthenticationDefaults.AuthenticationType, CookieAuthenticationDefaults.AuthenticationType);
-                
-				return string.Empty;
+                try
+                {
+                    HttpContext.Current.GetOwinContext().Authentication.SignOut(
+                        OpenIdConnectAuthenticationDefaults.AuthenticationType, CookieAuthenticationDefaults.AuthenticationType);
+                }
+                catch(NullReferenceException)
+                {
+                    //log but swallow exception
+                    //we can't allow an exception to be thrown in the authentication process.
+                }
+
+                return string.Empty;
             }
         }
 

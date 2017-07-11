@@ -29,9 +29,16 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
 			var cacheitem = authContext.TokenCache.ReadItems().Where(x => x.UniqueId == userObjectID).SingleOrDefault();
 			if (cacheitem != null) authContext.TokenCache.DeleteItem(cacheitem);
 
-			//force re-authentication
-			HttpContext.Current.GetOwinContext().Authentication.SignOut(
-				OpenIdConnectAuthenticationDefaults.AuthenticationType, CookieAuthenticationDefaults.AuthenticationType);
+            //force re-authentication
+            try
+            {
+                HttpContext.Current.GetOwinContext().Authentication.SignOut(
+                    OpenIdConnectAuthenticationDefaults.AuthenticationType, CookieAuthenticationDefaults.AuthenticationType);
+            }
+            catch (NullReferenceException)
+            {
+                //NullReferenceException can be thrown and it is death of redirects.
+            }
         }
 
         ClaimsPrincipal _Authenticate(string resourceName, ClaimsPrincipal incomingPrincipal, int iteration)
