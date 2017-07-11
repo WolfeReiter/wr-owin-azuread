@@ -195,5 +195,19 @@ namespace WolfeReiter.Owin.AzureAD.Utils
                 return _groupCacheTtlSeconds.Value;
             }
         }
+
+        static string cookieName = null;
+        public static string CookieName {
+            get
+            {
+                if(cookieName == null)
+                {
+                    var value = ConfigurationManager.AppSettings["azure:authenticationTicketCookieName"];
+                    if (string.IsNullOrEmpty(value)) value = ".wrticket-" + Guid.NewGuid().ToString("N");
+                    cookieName = value;
+                }
+                return cookieName;
+            }
+        }
     }
 }
