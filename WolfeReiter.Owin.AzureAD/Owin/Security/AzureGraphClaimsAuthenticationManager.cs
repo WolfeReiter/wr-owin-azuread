@@ -19,7 +19,6 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
     {
         public override ClaimsPrincipal Authenticate(string resourceName, ClaimsPrincipal incomingPrincipal)
         {
-            const int max_retries = 5;
             if (incomingPrincipal != null && incomingPrincipal.Identity.IsAuthenticated == true)
             {
                 try
