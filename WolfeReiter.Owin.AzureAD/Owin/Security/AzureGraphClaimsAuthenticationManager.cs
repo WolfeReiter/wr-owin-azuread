@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using WolfeReiter.Owin.AzureAD.Utils;
 using Microsoft.Owin.Security.OpenIdConnect;
 using Microsoft.Owin.Security.Cookies;
+using System.Collections.Concurrent;
 
 namespace WolfeReiter.Owin.AzureAD.Owin.Security
 {
@@ -80,10 +81,10 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
             return incomingPrincipal;
         }
 
-        static Dictionary<string, Tuple<DateTime, IEnumerable<string>>> PrincipalRoleCache { get; set; }
+        static IDictionary<string, Tuple<DateTime, IEnumerable<string>>> PrincipalRoleCache { get; set; }
         static AzureGraphClaimsAuthenticationManager()
         {
-            PrincipalRoleCache = new Dictionary<string, Tuple<DateTime, IEnumerable<string>>>();
+            PrincipalRoleCache = new ConcurrentDictionary<string, Tuple<DateTime, IEnumerable<string>>>();
         }
     }
 }
