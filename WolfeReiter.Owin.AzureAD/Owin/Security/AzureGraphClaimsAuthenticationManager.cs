@@ -28,19 +28,24 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
                     var identity               = (ClaimsIdentity)incomingPrincipal.Identity;
                     var identityKey            = identity.Name;
                     var cacheValid             = false;
-                    if (PrincipalRoleCache.ContainsKey(identityKey))
+                    
+                    //prevent possibility of race between threads contending to remove an item from the cache
+                    lock (cacheCleanLock)
                     {
-                        var grouple    = PrincipalRoleCache[identityKey];
-                        var expiration = grouple.Item1.AddSeconds(ConfigHelper.GroupCacheTtlSeconds);
-                        if (DateTime.UtcNow > expiration ||
-                            grouple.Item2.Count() != identity.Claims.Count(x => x.Type == "groups"))
+                        if (PrincipalRoleCache.ContainsKey(identityKey))
                         {
-                            PrincipalRoleCache.Remove(identityKey);
-                        }
-                        else
-                        {
-                            cacheValid = true;
-                            groups     = grouple.Item2;
+                            var grouple = PrincipalRoleCache[identityKey];
+                            var expiration = grouple.Item1.AddSeconds(ConfigHelper.GroupCacheTtlSeconds);
+                            if (DateTime.UtcNow > expiration ||
+                                grouple.Item2.Count() != identity.Claims.Count(x => x.Type == "groups"))
+                            {
+                                PrincipalRoleCache.Remove(identityKey);
+                            }
+                            else
+                            {
+                                cacheValid = true;
+                                groups = grouple.Item2;
+                            }
                         }
                     }
 
@@ -49,7 +54,18 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
                         groups = Task.Run(() => AzureGraphHelper.AzureGroups(incomingPrincipal))
                             .Result
                             .Select(x => x.DisplayName);
-                        PrincipalRoleCache.Add(identityKey, new Tuple<DateTime, IEnumerable<string>>(DateTime.UtcNow, groups));
+
+                        //even though we checked the shared cache object already, another thread may have added it in 
+                        //the time we are waiting for the Azure Graph API to return.
+                        lock (cacheAddLock)
+                        {
+                            //first thread to create the key in the dictionary wins
+                            //prevent [System.ArgumentException] The key already existed in the dictionary
+                            if (!PrincipalRoleCache.ContainsKey(identityKey)) 
+                            {
+                                PrincipalRoleCache.Add(identityKey, new Tuple<DateTime, IEnumerable<string>>(DateTime.UtcNow, groups));
+                            }
+                        }
                     }
                     foreach (var group in groups)
                     {
@@ -81,6 +97,9 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
             return incomingPrincipal;
         }
 
+        static object cacheRemoveLock = new object();
+        static object cacheAddLock   = new object();
+  
         static IDictionary<string, Tuple<DateTime, IEnumerable<string>>> PrincipalRoleCache { get; set; }
         static AzureGraphClaimsAuthenticationManager()
         {
