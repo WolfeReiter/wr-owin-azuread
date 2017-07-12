@@ -24,19 +24,19 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
             {
                 try
                 {
-                    IEnumerable<string> groups = Enumerable.Empty<string>();
-                    var identity               = (ClaimsIdentity)incomingPrincipal.Identity;
-                    var identityKey            = identity.Name;
-                    var cacheValid             = false;
-                    
+                    Tuple<DateTime, IEnumerable<string>> grouple = null;
+                    IEnumerable<string> groups                   = Enumerable.Empty<string>();
+                    var identity                                 = (ClaimsIdentity)incomingPrincipal.Identity;
+                    var identityKey                              = identity.Name;
+                    var cacheValid                               = false;
 
-                    if (PrincipalRoleCache.ContainsKey(identityKey))
+                    if (PrincipalRoleCache.TryGetValue(identityKey, out grouple))
                     {
-                        var grouple = PrincipalRoleCache[identityKey];
                         var expiration = grouple.Item1.AddSeconds(ConfigHelper.GroupCacheTtlSeconds);
                         if (DateTime.UtcNow > expiration ||
                             grouple.Item2.Count() != identity.Claims.Count(x => x.Type == "groups"))
                         {
+                            //don't need to check return because if it failed, then the entry was removed already
                             PrincipalRoleCache.TryRemove(identityKey, out grouple);
                         }
                         else
@@ -51,10 +51,10 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
                         groups = Task.Run(() => AzureGraphHelper.AzureGroups(incomingPrincipal))
                             .Result
                             .Select(x => x.DisplayName);
-
-                        var grouple = new Tuple<DateTime, IEnumerable<string>>(DateTime.UtcNow, groups);
+                        grouple = new Tuple<DateTime, IEnumerable<string>>(DateTime.UtcNow, groups);
                         PrincipalRoleCache.AddOrUpdate(identityKey, grouple, (key, oldGrouple) => grouple);
                     }
+
                     foreach (var group in groups)
                     {
                         //add AzureAD Group claims as Roles.
