@@ -120,37 +120,6 @@ namespace WolfeReiter.Owin.AzureAD.Utils
             return builder.Uri;
         }
 
-        /// <summary>
-        /// Azure graph token acquired from the principal and application client credential.
-        /// </summary>
-        /// <returns></returns>
-        public static async Task<string> AzureGraphToken()
-        {
-            var uid = new UserIdentifier(ClaimsPrincipal.Current.FindFirst(AzureClaimTypes.ObjectIdentifier).Value, UserIdentifierType.UniqueId);
-            var credential = new ClientCredential(AzureClientId, AzureAppKey);
-            var authContext = new AuthenticationContext(AzureAuthority);
-            try
-            {
-                var result = await authContext.AcquireTokenSilentAsync(AzureGraphResourceId, credential, uid);
-                return result.AccessToken;
-            }
-            catch (AdalSilentTokenAcquisitionException ex) //unable to get authentication context without a new login
-            {
-                LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex,"Unable to silently acquire Azure AuthenticationContext."), EventType.Warning);
-
-                //remove user from memory cache
-				string userObjectID = ClaimsPrincipal.Current.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
-				var cacheitem = authContext.TokenCache.ReadItems().Where(x => x.UniqueId == userObjectID).SingleOrDefault();
-				if (cacheitem != null) authContext.TokenCache.DeleteItem(cacheitem);
-
-                //force re-authentication
-				HttpContext.Current.GetOwinContext().Authentication.SignOut(
-					OpenIdConnectAuthenticationDefaults.AuthenticationType, CookieAuthenticationDefaults.AuthenticationType);
-                
-				return string.Empty;
-            }
-        }
-
         public static Uri AzureGraphServiceRoot()
         {
             return new Uri(AzureGraphResourceId + "/" + AzureTenant);
@@ -224,6 +193,35 @@ namespace WolfeReiter.Owin.AzureAD.Utils
                     else _groupCacheTtlSeconds = DefaultGroupCacheTtlSeconds;
                 }
                 return _groupCacheTtlSeconds.Value;
+            }
+        }
+
+        static string cookieName = null;
+        public static string CookieName {
+            get
+            {
+                if(cookieName == null)
+                {
+                    var value = ConfigurationManager.AppSettings["azure:authenticationTicketCookieName"];
+                    if (string.IsNullOrEmpty(value)) value = ".wrticket-" + Guid.NewGuid().ToString("N");
+                    cookieName = value;
+                }
+                return cookieName;
+            }
+        }
+
+        static bool? readGraphAsUser = null;
+        public static bool ReadGraphAsLoggedInUser
+        {
+            get
+            {
+                if(!readGraphAsUser.HasValue)
+                {
+                    var value = ConfigurationManager.AppSettings["azure:readGraphAsLoggedInUser"];
+                    if (string.Equals(bool.TrueString, value, StringComparison.InvariantCultureIgnoreCase)) readGraphAsUser = true;
+                    else readGraphAsUser = false;
+                }
+                return readGraphAsUser.Value;
             }
         }
     }

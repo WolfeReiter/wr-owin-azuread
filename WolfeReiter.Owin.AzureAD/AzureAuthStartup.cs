@@ -17,14 +17,18 @@ namespace WolfeReiter.Owin.AzureAD
 {
     public static class AzureAuthStartup
     {
-        /// <summary>
         /// To be called by Owin Startup class Configuration(IAppBuilder) method.
         /// </summary>
         /// <param name="app"></param>
         public static void ConfigureAuth(IAppBuilder app)
         {
             app.SetDefaultSignInAsAuthenticationType(CookieAuthenticationDefaults.AuthenticationType);
-            app.UseCookieAuthentication(new CookieAuthenticationOptions() { ExpireTimeSpan = TimeSpan.FromHours(18), SlidingExpiration = true });
+            app.UseCookieAuthentication(new CookieAuthenticationOptions()
+            {
+                ExpireTimeSpan    = TimeSpan.FromHours(18),
+                SlidingExpiration = true,
+                CookieName        = ConfigHelper.CookieName
+            });
             app.UseWolfeReiterOpenIdConnectAuthentication(
                  new WolfeReiterOpenIdConnectAuthenticationOptions()
                  {

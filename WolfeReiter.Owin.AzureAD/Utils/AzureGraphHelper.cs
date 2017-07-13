@@ -22,7 +22,7 @@ namespace WolfeReiter.Owin.AzureAD.Utils
         /// <returns></returns>
         public static async Task<Group> GroupFromName(string groupDisplayName)
         {
-            var directoryClient = new ActiveDirectoryClient(ConfigHelper.AzureGraphServiceRoot(), () => ConfigHelper.AzureGraphToken());
+            var directoryClient = new ActiveDirectoryClient(ConfigHelper.AzureGraphServiceRoot(), () => AzureGraphToken());
             var batch = new List<IReadOnlyQueryableSetBase>();
             var requests = new List<Task<IBatchElementResult[]>>();
             var groups = new List<Group>();
@@ -88,37 +88,19 @@ namespace WolfeReiter.Owin.AzureAD.Utils
         /// <returns></returns>
         public static async Task<IEnumerable<Group>> AzureGroups(this ClaimsPrincipal principal)
         {
-            var userObjectID     = ClaimsPrincipal.Current.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
+            var userObjectID        = principal.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
             var ids                 = GroupIDs(principal);
-            var directoryClient     = new ActiveDirectoryClient(ConfigHelper.AzureGraphServiceRoot(), () => ConfigHelper.AzureGraphToken());
+            var directoryClient     = new ActiveDirectoryClient(ConfigHelper.AzureGraphServiceRoot(), () => AzureGraphToken());
             var batch               = new List<IReadOnlyQueryableSetBase>();
             var requests            = new List<Task<IBatchElementResult[]>>();
             var groups              = new List<Group>();
             var utcExpired          = DateTime.UtcNow.AddSeconds(ConfigHelper.GroupCacheTtlSeconds);
 
             const int batchSize = 5;
-            int count = ids.Count(); //readonly
+            int count = ids.Count(); //count of groups to look up remotely
             int index = 0;
             foreach(var id in ids)
             {
-                lock (s_groupCacheLock)
-                {
-                    if (GroupCache.ContainsKey(id))
-                    {
-                        var grouple = GroupCache[id];
-                        if (grouple.Item2 < utcExpired)
-                        {
-                            //groop in cache is valid
-                            groups.Add(grouple.Item1);
-                            continue; //next iteration
-                        }
-                        else //expired
-                        {
-                            GroupCache.Remove(id);
-                            //fall through
-                        }
-                    } //fall through
-                }
                 index++;
                 batch.Add(directoryClient.Groups.Where(x => x.ObjectId == id));
                 if(count == index || batchSize == batch.Count) //batch requests
@@ -144,12 +126,6 @@ namespace WolfeReiter.Owin.AzureAD.Utils
                             {
                                 var group = (Group)result;
                                 groups.Add(group);
-                                lock (s_groupCacheLock)
-                                {
-                                    var grouple = new Tuple<Group, DateTime>(group, utcNow);
-                                    if (GroupCache.ContainsKey(group.ObjectId)) GroupCache[group.ObjectId] = grouple;
-                                    s_GroupCache.Add(group.ObjectId, grouple);
-                                }
                             }
                         }
                     }
@@ -170,20 +146,31 @@ namespace WolfeReiter.Owin.AzureAD.Utils
             return groups;
         }
 
+        /// <summary>
+        /// Azure graph token acquired from the principal and application client credential.
+        /// </summary>
+        /// <returns></returns>
+        static async Task<string> AzureGraphToken()
+        {
+            var credential = new ClientCredential(ConfigHelper.AzureClientId, ConfigHelper.AzureAppKey);
+            var authContext = new AuthenticationContext(ConfigHelper.AzureAuthority);
+            AuthenticationResult result;
+
+            if (ConfigHelper.ReadGraphAsLoggedInUser)
+            {
+                var uid = new UserIdentifier(ClaimsPrincipal.Current.FindFirst(AzureClaimTypes.ObjectIdentifier).Value, UserIdentifierType.UniqueId);
+                result = await authContext.AcquireTokenSilentAsync(ConfigHelper.AzureGraphResourceId, credential, uid);
+            }
+            else //read it as the application
+            {
+                result = await authContext.AcquireTokenAsync(ConfigHelper.AzureGraphResourceId, credential);
+            }
+            return result.AccessToken;
+        }
+
         static IEnumerable<string> GroupIDs(ClaimsPrincipal principal)
         {
             return principal.Claims.Where(x => x.Type == "groups").Select(x => x.Value.ToLower());
-        }
-
-        static readonly object s_groupCacheLock = new object();
-        static Dictionary<string,Tuple<Group, DateTime>> s_GroupCache = null;
-        static Dictionary<string, Tuple<Group, DateTime>> GroupCache
-        {
-            get
-            {
-                if(s_GroupCache == null) s_GroupCache = new Dictionary<string, Tuple<Group, DateTime>>();
-                return s_GroupCache;
-            }
         }
     }
 }

@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using WolfeReiter.Owin.AzureAD.Utils;
 using Microsoft.Owin.Security.OpenIdConnect;
 using Microsoft.Owin.Security.Cookies;
+using System.Collections.Concurrent;
 
 namespace WolfeReiter.Owin.AzureAD.Owin.Security
 {
@@ -19,57 +20,78 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
     {
         public override ClaimsPrincipal Authenticate(string resourceName, ClaimsPrincipal incomingPrincipal)
         {
-            return _Authenticate(resourceName, incomingPrincipal, 0);
-        }
-
-        void ClearAuthenticationContextState(ClaimsPrincipal incomingPrincipal)
-        {
-			string userObjectID = incomingPrincipal.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
-			var authContext = new AuthenticationContext(ConfigHelper.AzureAuthority);
-			var cacheitem = authContext.TokenCache.ReadItems().Where(x => x.UniqueId == userObjectID).SingleOrDefault();
-			if (cacheitem != null) authContext.TokenCache.DeleteItem(cacheitem);
-
-			//force re-authentication
-			HttpContext.Current.GetOwinContext().Authentication.SignOut(
-				OpenIdConnectAuthenticationDefaults.AuthenticationType, CookieAuthenticationDefaults.AuthenticationType);
-        }
-
-        ClaimsPrincipal _Authenticate(string resourceName, ClaimsPrincipal incomingPrincipal, int iteration)
-        {
-            const int max_retries = 5;
             if (incomingPrincipal != null && incomingPrincipal.Identity.IsAuthenticated == true)
             {
                 try
                 {
-					var identity = (ClaimsIdentity)incomingPrincipal.Identity;
-                    var groups = Task.Run(() => AzureGraphHelper.AzureGroups(incomingPrincipal)).Result;
+                    Tuple<DateTime, IEnumerable<string>> grouple = null;
+                    IEnumerable<string> groups                   = Enumerable.Empty<string>();
+                    var identity                                 = (ClaimsIdentity)incomingPrincipal.Identity;
+                    var identityKey                              = identity.Name;
+                    var cacheValid                               = false;
+
+                    if (PrincipalRoleCache.TryGetValue(identityKey, out grouple))
+                    {
+                        var expiration = grouple.Item1.AddSeconds(ConfigHelper.GroupCacheTtlSeconds);
+                        if (DateTime.UtcNow > expiration ||
+                            grouple.Item2.Count() != identity.Claims.Count(x => x.Type == "groups"))
+                        {
+                            //don't need to check return because if it failed, then the entry was removed already
+                            PrincipalRoleCache.TryRemove(identityKey, out grouple);
+                        }
+                        else
+                        {
+                            cacheValid = true;
+                            groups = grouple.Item2;
+                        }
+                    }
+
+                    if(!cacheValid)
+                    {
+                        groups = Task.Run(() => AzureGraphHelper.AzureGroups(incomingPrincipal))
+                            .Result
+                            .Select(x => x.DisplayName);
+                        grouple = new Tuple<DateTime, IEnumerable<string>>(DateTime.UtcNow, groups);
+                        PrincipalRoleCache.AddOrUpdate(identityKey, grouple, (key, oldGrouple) => grouple);
+                    }
+
                     foreach (var group in groups)
                     {
                         //add AzureAD Group claims as Roles.
-                        identity.AddClaim(new Claim(ClaimTypes.Role, group.DisplayName, ClaimValueTypes.String, "AzureAD"));
+                        identity.AddClaim(new Claim(ClaimTypes.Role, group, ClaimValueTypes.String, "AzureAD"));
                     }
                 }
                 catch (Exception ex)
                 {
-                    LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex, string.Format("Exception Mapping Groups to Roles (iteration: {0})",iteration)), EventType.Warning);
-                    var agx = ex as AggregateException;
-                    if(agx != null && agx.InnerExceptions.Any(x => x is AdalSilentTokenAcquisitionException)) //azure token requires refresh
-                    {
-                        ClearAuthenticationContextState(incomingPrincipal);
-                        return new GenericPrincipal(new GenericIdentity(""), new string[0]); //principal with unauthenticated identity
-                    }
-                    else if(iteration < max_retries) //other failure, maybe retry will fix it
-                    {
-                        Thread.Sleep(5000);
-                        return _Authenticate(resourceName, incomingPrincipal, iteration + 1);
-                    }
+                    LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex, string.Format("Exception Mapping Groups to Roles)")), EventType.Warning);
+                    string userObjectID = incomingPrincipal.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
+                    var authContext = new AuthenticationContext(ConfigHelper.AzureAuthority);
+                    var cacheitem = authContext.TokenCache.ReadItems().Where(x => x.UniqueId == userObjectID).SingleOrDefault();
+                    if (cacheitem != null) authContext.TokenCache.DeleteItem(cacheitem);
 
-                    ClearAuthenticationContextState(incomingPrincipal);
-					//principal is not valid. Should be not authenticated.
-					return new GenericPrincipal(new GenericIdentity(""), new string[0]); //principal with unauthenticated identity
+                    var httpContext = HttpContext.Current;
+                    try
+                    {
+                        httpContext.GetOwinContext().Authentication.SignOut(
+                            OpenIdConnectAuthenticationDefaults.AuthenticationType, CookieAuthenticationDefaults.AuthenticationType);
+                    }
+                    catch(Exception)
+                    {
+                        httpContext.Response.Cookies.Clear();
+                    }
+                    return new GenericPrincipal(new GenericIdentity(""), new string[0]); //principal with unauthenticated identity
                 }
             }
             return incomingPrincipal;
+        }
+
+        static object cacheRemoveLock = new object();
+        //static object cacheAddLock   = new object();
+  
+        static ConcurrentDictionary<string, Tuple<DateTime, IEnumerable<string>>> PrincipalRoleCache { get; set; }
+        static AzureGraphClaimsAuthenticationManager()
+        {
+            PrincipalRoleCache = new ConcurrentDictionary<string, Tuple<DateTime, IEnumerable<string>>>();
         }
     }
 }
