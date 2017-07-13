@@ -24,7 +24,7 @@ namespace WolfeReiter.Owin.AzureAD
         public static void ConfigureAuth(IAppBuilder app)
         {
             app.SetDefaultSignInAsAuthenticationType(CookieAuthenticationDefaults.AuthenticationType);
-            app.UseCookieAuthentication(new CookieAuthenticationOptions() { ExpireTimeSpan = TimeSpan.FromHours(6), SlidingExpiration = true });
+            app.UseCookieAuthentication(new CookieAuthenticationOptions() { ExpireTimeSpan = TimeSpan.FromHours(18), SlidingExpiration = true });
             app.UseWolfeReiterOpenIdConnectAuthentication(
                  new WolfeReiterOpenIdConnectAuthenticationOptions()
                  {
@@ -65,16 +65,14 @@ namespace WolfeReiter.Owin.AzureAD
 
                          AuthenticationFailed = context =>
                          {
-                             //silently handle nonce cookie mismatch (mostly caused by people using the back button
-                             if (context.Exception.Message.StartsWith("OICE_20004", StringComparison.InvariantCulture) || context.Exception.Message.Contains("IDX10311:"))
-							 {
-                                 LogUtility.WriteEventLogEntry(LogUtility.FormatException(context.Exception, "AzureAD Authentication Cookie Mismatch"), EventType.Warning);
-								 context.SkipToNextMiddleware();
-								 return Task.FromResult(0);
-							 }
                              context.HandleResponse();
-                             LogUtility.WriteEventLogEntry(LogUtility.FormatException(context.Exception, "AzureAD Authentication Handshake Failed"), EventType.Exception);
-                             context.Response.Redirect(String.Format(ConfigHelper.AzureAuthenticationFailedHandlerUrlTemplate, context.Exception.Message));
+                             LogUtility.WriteEventLogEntry(LogUtility.FormatException(context.Exception, "AzureAD Authentication Handshake Failed"), EventType.Warning);
+                             var message = context.Exception.Message;
+							 if (message.StartsWith("IDX10311:", StringComparison.InvariantCulture))
+							 {
+                                 message = "Your Azure authentication token is expired or has been invalidated.";
+							 }
+                             context.Response.Redirect(String.Format(ConfigHelper.AzureAuthenticationFailedHandlerUrlTemplate, message));
                              return Task.FromResult(0);
                          }
                      }
