@@ -154,7 +154,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="LogUtility.cs" />
+    <Compile Include="Owin\IOwinContextExtension.cs" />
     <Compile Include="Owin\Security\AzureGraphClaimsAuthenticationManager.cs" />
+    <Compile Include="Owin\Security\Cookies\SystemWebCookieManager.cs" />
     <Compile Include="Owin\Security\OpenIdConnect\WolfeReiterOpenIdConnectAuthenticationHandler.cs" />
     <Compile Include="Owin\Security\OpenIdConnect\WolfeReiterOpenIdConnectAuthenticationMiddleware.cs" />
     <Compile Include="Owin\Security\OpenIdConnect\WolfeReiterOpenIdConnectAuthenticationOptions.cs" />

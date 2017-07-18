@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using WolfeReiter.Owin.AzureAD.Utils;
+using WolfeReiter.Owin.Security.Cookies;
 using WolfeReiter.Owin.Security.OpenIdConnect;
 
 namespace WolfeReiter.Owin.AzureAD
@@ -22,9 +23,17 @@ namespace WolfeReiter.Owin.AzureAD
         /// <param name="app"></param>
         public static void ConfigureAuth(IAppBuilder app)
         {
+            /**
+            * OWIN by default uses HttpContext.Response.Headers for storing its response cookies. All legacy .NET System.Web classes
+            * prior to .NET Core (including .NET 4.0, 4.5.x, 4.6.x, 4.7, etc.) all use System.Web.HttpResponse.Cookies which
+            * can overwrite the cookies in HttpResponse.Headers at the end of request processing. Use of System.Web.Response.Cookeis, 
+            * such as using SessionState including MVC TempData[] can cause Owin authentication cookies to dissapear randomly. 
+            * Once that occurs, nobody can log in.
+            **/
             app.SetDefaultSignInAsAuthenticationType(CookieAuthenticationDefaults.AuthenticationType);
             app.UseCookieAuthentication(new CookieAuthenticationOptions()
             {
+                CookieManager     = new SystemWebCookieManager(), //forces OWIN to use Response.Cookies for storage compatibility
                 ExpireTimeSpan    = TimeSpan.FromHours(6),
                 SlidingExpiration = true,
                 CookieName        = ConfigHelper.CookieName
