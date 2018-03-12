@@ -22,20 +22,21 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
         {
             if (incomingPrincipal != null && incomingPrincipal.Identity.IsAuthenticated == true)
             {
+                Tuple<DateTime, IEnumerable<string>> grouple = null;
+                IEnumerable<string> groups                   = Enumerable.Empty<string>();
+                IEnumerable<string> oldGroups                = Enumerable.Empty<string>();
+                var identity                                 = (ClaimsIdentity)incomingPrincipal.Identity;
+                var identityKey                              = identity.Name;
+                var cacheValid                               = false;
                 try
                 {
-                    Tuple<DateTime, IEnumerable<string>> grouple = null;
-                    IEnumerable<string> groups                   = Enumerable.Empty<string>();
-                    var identity                                 = (ClaimsIdentity)incomingPrincipal.Identity;
-                    var identityKey                              = identity.Name;
-                    var cacheValid                               = false;
-
                     if (PrincipalRoleCache.TryGetValue(identityKey, out grouple))
                     {
                         var expiration = grouple.Item1.AddSeconds(ConfigHelper.GroupCacheTtlSeconds);
                         if (DateTime.UtcNow > expiration ||
                             grouple.Item2.Count() != identity.Claims.Count(x => x.Type == "groups"))
                         {
+                            oldGroups = grouple.Item2;
                             //don't need to check return because if it failed, then the entry was removed already
                             PrincipalRoleCache.TryRemove(identityKey, out grouple);
                         }
@@ -64,29 +65,18 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
                 catch (Exception ex)
                 {
                     LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex, string.Format("Exception Mapping Groups to Roles)")), EventType.Warning);
-                    string userObjectID = incomingPrincipal.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
-                    var authContext = new AuthenticationContext(ConfigHelper.AzureAuthority);
-                    var cacheitem = authContext.TokenCache.ReadItems().Where(x => x.UniqueId == userObjectID).SingleOrDefault();
-                    if (cacheitem != null) authContext.TokenCache.DeleteItem(cacheitem);
-
-                    var httpContext = HttpContext.Current;
-                    try
+                    identity.AddClaim(new Claim(ClaimTypes.AuthorizationDecision, String.Format("AzureAD-Group-Lookup-Error:{0:yyyy-MM-dd_HH:mm.ss}Z", DateTime.UtcNow)));
+                    //Handle intermittnent server problem by keeping old groups if they existed.
+                    if(oldGroups.Any()) PrincipalRoleCache.AddOrUpdate(identityKey, grouple, (key, oldGrouple) => grouple);
+                    foreach (var group in oldGroups)
                     {
-                        httpContext.GetOwinContext().Authentication.SignOut(
-                            OpenIdConnectAuthenticationDefaults.AuthenticationType, CookieAuthenticationDefaults.AuthenticationType);
+                        //add AzureAD Group claims as Roles.
+                        identity.AddClaim(new Claim(ClaimTypes.Role, group, ClaimValueTypes.String, "AzureAD"));
                     }
-                    catch(Exception)
-                    {
-                        httpContext.Response.Cookies.Clear();
-                    }
-                    return new GenericPrincipal(new GenericIdentity(""), new string[0]); //principal with unauthenticated identity
                 }
             }
             return incomingPrincipal;
         }
-
-        static object cacheRemoveLock = new object();
-        //static object cacheAddLock   = new object();
   
         static ConcurrentDictionary<string, Tuple<DateTime, IEnumerable<string>>> PrincipalRoleCache { get; set; }
         static AzureGraphClaimsAuthenticationManager()
