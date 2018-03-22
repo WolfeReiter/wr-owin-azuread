@@ -67,11 +67,15 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
                     LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex, string.Format("Exception Mapping Groups to Roles)")), EventType.Warning);
                     identity.AddClaim(new Claim(ClaimTypes.AuthorizationDecision, String.Format("AzureAD-Group-Lookup-Error:{0:yyyy-MM-dd_HH:mm.ss}Z", DateTime.UtcNow)));
                     //Handle intermittnent server problem by keeping old groups if they existed.
-                    if(oldGroups.Any()) PrincipalRoleCache.AddOrUpdate(identityKey, grouple, (key, oldGrouple) => grouple);
-                    foreach (var group in oldGroups)
+                    if (oldGroups.Any())
                     {
-                        //add AzureAD Group claims as Roles.
-                        identity.AddClaim(new Claim(ClaimTypes.Role, group, ClaimValueTypes.String, "AzureAD"));
+                        grouple = new Tuple<DateTime, IEnumerable<string>>(DateTime.UtcNow.AddSeconds(-(ConfigHelper.GroupCacheTtlSeconds / 2)), oldGroups);
+                        PrincipalRoleCache.AddOrUpdate(identityKey, grouple, (key, oldGrouple) => grouple);
+                        foreach (var group in oldGroups)
+                        {
+                            //add AzureAD Group claims as Roles.
+                            identity.AddClaim(new Claim(ClaimTypes.Role, group, ClaimValueTypes.String, "AzureAD"));
+                        }
                     }
                 }
             }
