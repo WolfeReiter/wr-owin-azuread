@@ -18,6 +18,7 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
 {
     public class AzureGraphClaimsAuthenticationManager : ClaimsAuthenticationManager
     {
+        readonly object m_lock = new object();
         public override ClaimsPrincipal Authenticate(string resourceName, ClaimsPrincipal incomingPrincipal)
         {
             if (incomingPrincipal != null && incomingPrincipal.Identity.IsAuthenticated == true)
@@ -32,18 +33,22 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
                 {
                     if (PrincipalRoleCache.TryGetValue(identityKey, out grouple))
                     {
-                        var expiration = grouple.Item1.AddSeconds(ConfigHelper.GroupCacheTtlSeconds);
-                        if (DateTime.UtcNow > expiration ||
-                            grouple.Item2.Count() != identity.Claims.Count(x => x.Type == "groups"))
+                        lock(grouple) //prevent concurrent access to grouple Tuple
                         {
-                            oldGroups = grouple.Item2;
-                            //don't need to check return because if it failed, then the entry was removed already
-                            PrincipalRoleCache.TryRemove(identityKey, out grouple);
-                        }
-                        else
-                        {
-                            cacheValid = true;
-                            groups = grouple.Item2;
+                            var expiration = grouple.Item1.AddSeconds(ConfigHelper.GroupCacheTtlSeconds);
+                            if (DateTime.UtcNow > expiration ||
+                                grouple.Item2.Count() != identity.Claims.Count(x => x.Type == "groups"))
+                            {
+                                oldGroups = grouple.Item2;
+                                //don't need to check return because if it failed, then the entry was removed already
+                                Tuple<DateTime, IEnumerable<string>> removedGrouple = null;
+                                PrincipalRoleCache.TryRemove(identityKey, out removedGrouple);
+                            }
+                            else
+                            {
+                                cacheValid = true;
+                                groups = grouple.Item2;
+                            }
                         }
                     }
 
