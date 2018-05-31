@@ -18,7 +18,6 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
 {
     public class AzureGraphClaimsAuthenticationManager : ClaimsAuthenticationManager
     {
-        readonly object m_lock = new object();
         public override ClaimsPrincipal Authenticate(string resourceName, ClaimsPrincipal incomingPrincipal)
         {
             if (incomingPrincipal != null && incomingPrincipal.Identity.IsAuthenticated == true)
