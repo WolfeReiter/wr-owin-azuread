@@ -68,7 +68,7 @@ namespace WolfeReiter.Owin.AzureAD.Owin.Security
                 }
                 catch (Exception ex)
                 {
-                    LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex, string.Format("Exception Mapping Groups to Roles)")), EventType.Warning);
+                    LogUtility.WriteEventLogEntry(LogUtility.FormatException(ex, string.Format("Exception Mapping Groups to Roles.")), EventType.Warning);
                     identity.AddClaim(new Claim(ClaimTypes.AuthorizationDecision, String.Format("AzureAD-Group-Lookup-Error:{0:yyyy-MM-dd_HH:mm.ss}Z", DateTime.UtcNow)));
                     //Handle intermittnent server problem by keeping old groups if they existed.
                     if (oldGroups.Any())
