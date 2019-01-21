@@ -24,15 +24,21 @@ namespace WolfeReiter.Owin.AzureAD.Utils
         {
             var directoryClient = new ActiveDirectoryClient(ConfigHelper.AzureGraphServiceRoot(), () => AzureGraphToken());
             var batch = new List<IReadOnlyQueryableSetBase>();
-            var requests = new List<Task<IBatchElementResult[]>>();
+            var requests = new List<Task<Task<IBatchElementResult[]>>>();
             var groups = new List<Group>();
 
             batch.Add(directoryClient.Groups.Where(x => x.DisplayName == groupDisplayName));
-            requests.Add(directoryClient.Context.ExecuteBatchAsync(batch.ToArray()));
+            requests.Add(directoryClient.Context.ExecuteBatchAsync(batch.ToArray())
+                .ContinueWith(t => t, TaskContinuationOptions.ExecuteSynchronously));
             batch.Clear();
 
             var responses = await Task.WhenAll(requests);
-            foreach (var batchResult in responses)
+            foreach (var task in responses.Where(x => x.IsFaulted))
+            {
+                LogUtility.WriteEventLogEntry(LogUtility.FormatException(task.Exception, string.Format("Fault querying for AzureAD Group")), EventType.Warning);
+            }
+
+            foreach (var batchResult in responses.Where(x => x.Status == TaskStatus.RanToCompletion).Select(x => x.Result))
             {
                 foreach (var item in batchResult)
                 {
@@ -92,7 +98,7 @@ namespace WolfeReiter.Owin.AzureAD.Utils
             var ids                 = GroupIDs(principal);
             var directoryClient     = new ActiveDirectoryClient(ConfigHelper.AzureGraphServiceRoot(), () => AzureGraphToken());
             var batch               = new List<IReadOnlyQueryableSetBase>();
-            var requests            = new List<Task<IBatchElementResult[]>>();
+            var requests            = new List<Task<Task<IBatchElementResult[]>>>();
             var groups              = new List<Group>();
             var utcExpired          = DateTime.UtcNow.AddSeconds(ConfigHelper.GroupCacheTtlSeconds);
 
@@ -105,14 +111,20 @@ namespace WolfeReiter.Owin.AzureAD.Utils
                 batch.Add(directoryClient.Groups.Where(x => x.ObjectId == id));
                 if(count == index || batchSize == batch.Count) //batch requests
                 {
-                    requests.Add(directoryClient.Context.ExecuteBatchAsync(batch.ToArray()));
+                    var task = directoryClient.Context.ExecuteBatchAsync(batch.ToArray())
+                         .ContinueWith(t => t, TaskContinuationOptions.ExecuteSynchronously);
+                    requests.Add(task);
                     batch.Clear();
                 }
             }
 
             var responses = await Task.WhenAll(requests);
+            foreach(var task in responses.Where(x => x.IsFaulted))
+            {
+                LogUtility.WriteEventLogEntry(LogUtility.FormatException(task.Exception, string.Format("Fault querying for AzureAD Group")), EventType.Warning);
+            }
             var utcNow = DateTime.UtcNow;
-            foreach(var batchResult in responses)
+            foreach(var batchResult in responses.Where(x => x.Status == TaskStatus.RanToCompletion).Select(x => x.Result))
             {
                 foreach(var item in batchResult)
                 {
