@@ -22,7 +22,7 @@ namespace WolfeReiter.Owin.AzureAD.Utils
         /// <returns></returns>
         public static async Task<Group> GroupFromName(string groupDisplayName)
         {
-            var directoryClient = new ActiveDirectoryClient(ConfigHelper.AzureGraphServiceRoot(), () => AzureGraphToken());
+            var directoryClient = new ActiveDirectoryClient(ConfigHelper.AzureGraphServiceRoot(), () => AzureGraphToken(ClaimsPrincipal.Current));
             var batch = new List<IReadOnlyQueryableSetBase>();
             var requests = new List<Task<Task<IBatchElementResult[]>>>();
             var groups = new List<Group>();
@@ -96,7 +96,7 @@ namespace WolfeReiter.Owin.AzureAD.Utils
         {
             var userObjectID        = principal.FindFirst(AzureClaimTypes.ObjectIdentifier).Value;
             var ids                 = GroupIDs(principal);
-            var directoryClient     = new ActiveDirectoryClient(ConfigHelper.AzureGraphServiceRoot(), () => AzureGraphToken());
+            var directoryClient     = new ActiveDirectoryClient(ConfigHelper.AzureGraphServiceRoot(), () => AzureGraphToken(principal));
             var batch               = new List<IReadOnlyQueryableSetBase>();
             var requests            = new List<Task<Task<IBatchElementResult[]>>>();
             var groups              = new List<Group>();
@@ -162,21 +162,13 @@ namespace WolfeReiter.Owin.AzureAD.Utils
         /// Azure graph token acquired from the principal and application client credential.
         /// </summary>
         /// <returns></returns>
-        static async Task<string> AzureGraphToken()
+        static async Task<string> AzureGraphToken(ClaimsPrincipal principal)
         {
+            var uid = new UserIdentifier(principal.FindFirst(AzureClaimTypes.ObjectIdentifier).Value, UserIdentifierType.UniqueId);
             var credential = new ClientCredential(ConfigHelper.AzureClientId, ConfigHelper.AzureAppKey);
             var authContext = new AuthenticationContext(ConfigHelper.AzureAuthority);
-            AuthenticationResult result;
 
-            if (ConfigHelper.ReadGraphAsLoggedInUser)
-            {
-                var uid = new UserIdentifier(ClaimsPrincipal.Current.FindFirst(AzureClaimTypes.ObjectIdentifier).Value, UserIdentifierType.UniqueId);
-                result = await authContext.AcquireTokenSilentAsync(ConfigHelper.AzureGraphResourceId, credential, uid);
-            }
-            else //read it as the application
-            {
-                result = await authContext.AcquireTokenAsync(ConfigHelper.AzureGraphResourceId, credential);
-            }
+            var result = await authContext.AcquireTokenSilentAsync(ConfigHelper.AzureGraphResourceId, credential, uid);
             return result.AccessToken;
         }
 
