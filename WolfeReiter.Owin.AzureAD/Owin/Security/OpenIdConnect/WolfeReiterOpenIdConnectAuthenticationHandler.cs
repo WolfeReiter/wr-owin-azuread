@@ -8,6 +8,8 @@ using Microsoft.IdentityModel.Protocols;
 using Microsoft.Owin;
 using Microsoft.Owin.Security;
 using System.Text;
+using WolfeReiter.Owin.AzureAD.Utils;
+using Microsoft.Owin.Security.Cookies;
 
 namespace WolfeReiter.Owin.Security.OpenIdConnect
 {
@@ -16,6 +18,24 @@ namespace WolfeReiter.Owin.Security.OpenIdConnect
         private const string NonceProperty = "N";
 
         public WolfeReiterOpenIdConnectAuthenticationHandler(ILogger logger) : base(logger) { }
+
+        bool CookieSecure
+        {
+            get
+            {
+                switch (ConfigHelper.CookieSecureOption)
+                {
+                    case CookieSecureOption.Never:
+                        return false;
+                    case CookieSecureOption.Always:
+                        return true;
+                    case CookieSecureOption.SameAsRequest:
+                        return Request.IsSecure;
+                    default:
+                        return Request.IsSecure;
+                }
+            }
+        }
 
         /*
          *  Option A: Shorten TTL on cookies to 15 mintues
@@ -39,11 +59,12 @@ namespace WolfeReiter.Owin.Security.OpenIdConnect
             var cookieOptions = new CookieOptions()
             {
                 HttpOnly = true,
-                Secure = Request.IsSecure
+                Secure = CookieSecure
             };
-            
+
+
             // cleanup if cookie count is getting out of hand
-            if(nonceCookies.Count() > 3)
+            if (nonceCookies.Count() > 3)
             {
                 foreach (var nonceCookie in nonceCookies)
                 {
@@ -59,7 +80,7 @@ namespace WolfeReiter.Owin.Security.OpenIdConnect
                 new CookieOptions
                 {
                     HttpOnly = true,
-                    Secure = Request.IsSecure,
+                    Secure = CookieSecure,
                     Expires = DateTime.UtcNow + Options.ProtocolValidator.NonceLifetime
                 });
         }
@@ -77,7 +98,7 @@ namespace WolfeReiter.Owin.Security.OpenIdConnect
         //        var cookieOptions = new CookieOptions()
         //        {
         //            HttpOnly = true,
-        //            Secure   = Request.IsSecure
+        //            Secure   = CookieSecure
         //        };
         //        foreach(var nonceCookie in nonceCookies)
         //        {
