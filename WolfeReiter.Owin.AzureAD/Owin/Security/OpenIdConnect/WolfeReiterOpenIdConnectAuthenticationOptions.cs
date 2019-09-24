@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
+using WolfeReiter.Owin.AzureAD.Utils;
 
 namespace WolfeReiter.Owin.Security.OpenIdConnect
 {
@@ -14,7 +15,7 @@ namespace WolfeReiter.Owin.Security.OpenIdConnect
         {
             ProtocolValidator = new OpenIdConnectProtocolValidator()
             {
-                NonceLifetime = TimeSpan.FromMinutes(15) //,
+                NonceLifetime = TimeSpan.FromMinutes(15),
                 /*****************************************
                  * Rare event, but blocks authentication *
                  *****************************************/
@@ -28,7 +29,7 @@ namespace WolfeReiter.Owin.Security.OpenIdConnect
                 // 2. Application is embedded in an iframe in another website and the user has disabled 3rd party cookies.
                 // 3. The browser has an adblocker extension installed that is preventing the nonce cookie from being returned.
 
-                //RequireNonce = false
+                RequireNonce = ConfigHelper.RequireNonce
             };
         }
     }

@@ -235,5 +235,15 @@ namespace WolfeReiter.Owin.AzureAD.Utils
                 return result;
             }
         }
+
+        public static bool RequireNonce
+        {
+            get
+            {
+                bool result;
+                if (!bool.TryParse(ConfigurationManager.AppSettings["azure:requireNonce"], out result)) return true;
+                return result;
+            }
+        }
     }
 }
