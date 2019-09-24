@@ -36,7 +36,8 @@ namespace WolfeReiter.Owin.AzureAD
                 CookieManager     = new SystemWebCookieManager(), //forces OWIN to use Response.Cookies for storage compatibility
                 ExpireTimeSpan    = TimeSpan.FromHours(18),
                 SlidingExpiration = true,
-                CookieName        = ConfigHelper.CookieName
+                CookieName        = ConfigHelper.CookieName,
+                CookieSecure      = ConfigHelper.CookieSecureOption
             });
             app.UseWolfeReiterOpenIdConnectAuthentication(
                  new WolfeReiterOpenIdConnectAuthenticationOptions()

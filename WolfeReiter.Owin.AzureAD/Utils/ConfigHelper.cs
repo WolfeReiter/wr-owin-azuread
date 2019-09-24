@@ -209,5 +209,16 @@ namespace WolfeReiter.Owin.AzureAD.Utils
                 return cookieName;
             }
         }
+
+        public static CookieSecureOption CookieSecureOption
+        {
+            get
+            {
+                CookieSecureOption result;
+                if (!Enum.TryParse<CookieSecureOption>(ConfigurationManager.AppSettings["azure:cookieSecureOption"], out result))
+                    result = CookieSecureOption.SameAsRequest;
+                return result;
+            }
+        }
     }
 }
