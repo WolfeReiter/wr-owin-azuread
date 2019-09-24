@@ -210,6 +210,21 @@ namespace WolfeReiter.Owin.AzureAD.Utils
             }
         }
 
+        static bool? readGraphAsUser = null;
+        public static bool ReadGraphAsLoggedInUser
+        {
+            get
+            {
+                if(!readGraphAsUser.HasValue)
+                {
+                    var value = ConfigurationManager.AppSettings["azure:readGraphAsLoggedInUser"];
+                    if (string.Equals(bool.TrueString, value, StringComparison.InvariantCultureIgnoreCase)) readGraphAsUser = true;
+                    else readGraphAsUser = false;
+                }
+                return readGraphAsUser.Value;
+            }
+        }
+		
         public static CookieSecureOption CookieSecureOption
         {
             get
