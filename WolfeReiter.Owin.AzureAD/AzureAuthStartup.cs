@@ -55,16 +55,7 @@ namespace WolfeReiter.Owin.AzureAD
                              var cacheitem = authContext.TokenCache.ReadItems().Where(x => x.UniqueId == userObjectID).SingleOrDefault();
                              if (cacheitem != null) authContext.TokenCache.DeleteItem(cacheitem);
                              //get target redirect
-                             string path = null;
-                             try
-                             {
-                                 //empirically this is sometimes throwing a NullReferenceException on IIS 8.5 on Windows Server 2012 R2.
-                                 path = HttpContext.Current.Request.Url.GetLeftPart(UriPartial.Path);
-                             }
-                             catch(NullReferenceException)
-                             {
-                                 path = ConfigHelper.FallbackRedirectUri;
-                             }
+                             string path = ConfigHelper.FallbackRedirectUri;
                              var builder = new UriBuilder(path);
                              if (!string.IsNullOrEmpty(ConfigHelper.OpenIdConnectRedirectScheme)) builder.Scheme = ConfigHelper.OpenIdConnectRedirectScheme;
                              if (ConfigHelper.OpenIdConnectRedirectPort.HasValue) builder.Port = ConfigHelper.OpenIdConnectRedirectPort.Value;
@@ -91,21 +82,6 @@ namespace WolfeReiter.Owin.AzureAD
                          }
                      }
                  });
-        }
-
-        /// <summary>
-        /// To be called by Global.asax.cs Application_PostAuthenticateRequest() handler.
-        /// </summary>
-        public static void PostAuthenticateRequest()
-        {
-            var context = HttpContext.Current;
-            if (ClaimsPrincipal.Current.Identity.IsAuthenticated)
-            {
-                var transformer = FederatedAuthentication.FederationConfiguration.IdentityConfiguration.ClaimsAuthenticationManager;
-                var newPrincipal = transformer.Authenticate(string.Empty, ClaimsPrincipal.Current);
-                Thread.CurrentPrincipal = newPrincipal;
-                context.User = newPrincipal;
-            }
         }
     }
 }

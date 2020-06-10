@@ -245,5 +245,23 @@ namespace WolfeReiter.Owin.AzureAD.Utils
                 return result;
             }
         }
+
+        public static bool RemoveAzureGroupClaims
+        {
+            get
+            {
+                bool result;
+                if (!bool.TryParse(ConfigurationManager.AppSettings["azure:removeGroupClaims"], out result)) return true;
+                return result;
+            }
+        }
+
+        public static string RoleFilterPattern
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["azure:groupNameFilterPattern"];
+            }
+        }
     }
 }
